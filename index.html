@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Velora Coffee — Smart Table System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (Compat Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-green: #0d3b2e;
+            --dark-green: #051a14;
+            --light-green: #1a5c4a;
+            --accent-gold: #e6b85c;
+            --gold-glow: rgba(230, 184, 92, 0.35);
+            --cream: #f8f4ec;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --font-ar: 'Cairo', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-ar);
+            background: var(--dark-green);
+            color: var(--cream);
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+            width: 100%;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            background: rgba(13, 59, 46, 0.95);
+            border: 1px solid var(--accent-gold);
+            color: var(--cream);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 700;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* Nav Header */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 12px 4%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(5, 26, 20, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .logo { font-size: clamp(16px, 4vw, 22px); font-weight: 900; color: var(--cream); }
+        .logo span { color: var(--accent-gold); }
+        
+        .nav-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        
+        .btn-dash {
+            background: rgba(230, 184, 92, 0.15);
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-dash:hover { background: var(--accent-gold); color: var(--dark-green); }
+
+        .cart-trigger {
+            background: rgba(230, 184, 92, 0.2);
+            border: 1px solid var(--accent-gold);
+            padding: 6px 14px;
+            border-radius: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            font-size: 13px;
+            color: var(--accent-gold);
+            transition: transform 0.2s, background 0.3s;
+        }
+        .cart-trigger:active { transform: scale(0.95); }
+        
+        .cart-badge {
+            background: var(--accent-gold);
+            color: var(--dark-green);
+            border-radius: 50%;
+            width: 22px; height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        /* Order Status Live Banner */
+        .live-order-tracker {
+            background: rgba(13, 59, 46, 0.85);
+            border: 1px solid var(--accent-gold);
+            border-radius: 16px;
+            padding: 18px;
+            margin: 15px auto 0;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            display: none;
+            text-align: right;
+            backdrop-filter: blur(10px);
+        }
+        .tracker-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .tracker-status-tag {
+            background: #d97706;
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .tracker-status-tag.done { background: #059669; }
+
+        /* Welcome Overlay Modal */
+        .welcome-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 26, 20, 0.95);
+            backdrop-filter: blur(15px);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        .welcome-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        .welcome-card {
+            background: var(--glass);
+            border: 1px solid var(--accent-gold);
+            border-radius: 24px;
+            padding: 32px 24px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            position: relative;
+        }
+        .welcome-card h2 { font-size: 24px; color: var(--accent-gold); margin-bottom: 8px; font-weight: 800; }
+        .welcome-card p { font-size: 14px; color: rgba(248, 244, 236, 0.75); margin-bottom: 20px; line-height: 1.5; }
+
+        .returning-banner {
+            background: rgba(230, 184, 92, 0.15);
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        /* Form Inputs */
+        .form-group { margin-bottom: 14px; text-align: start; }
+        .form-group label { display: block; font-weight: 700; margin-bottom: 6px; color: var(--accent-gold); font-size: 13px; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
+            color: var(--cream);
+            font-size: 14px;
+            outline: none;
+            font-family: inherit;
+        }
+        .form-group select option { background: var(--dark-green); color: var(--cream); }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent-gold); }
+
+        /* Hero */
+        .hero {
+            min-height: 40vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+            padding: 100px 5% 20px;
+            text-align: center;
+        }
+        .user-welcome-tag {
+            background: rgba(230, 184, 92, 0.15);
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: inline-block;
+        }
+        .hero h1 {
+            font-size: clamp(26px, 5vw, 44px);
+            font-weight: 900;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--accent-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p { font-size: 15px; color: rgba(248,244,236,0.8); max-width: 600px; margin-bottom: 10px; }
+
+        /* Search & Filter Bar */
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto 15px;
+            display: flex;
+            gap: 10px;
+            padding: 0 5%;
+        }
+        .search-input {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
+            color: var(--cream);
+            font-size: 14px;
+            outline: none;
+            font-family: inherit;
+        }
+        .search-input:focus { border-color: var(--accent-gold); }
+
+        /* Category Filter Tabs */
+        .category-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+            padding: 0 5%;
+        }
+        .cat-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--cream);
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .cat-btn.active, .cat-btn:hover {
+            background: var(--accent-gold);
+            color: var(--dark-green);
+            border-color: var(--accent-gold);
+        }
+
+        /* Menu */
+        section { padding: 10px 5% 80px; position: relative; z-index: 1; }
+        .section-title {
+            font-size: clamp(22px, 4vw, 32px);
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--accent-gold);
+        }
+
+        .creations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .creation-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 16px;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .creation-card:hover { transform: translateY(-5px); border-color: var(--accent-gold); }
+        .creation-card img {
+            width: 100%; 
+            height: 150px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            filter: drop-shadow(0 8px 12px rgba(0,0,0,0.4));
+        }
+        .creation-card h3 { font-size: 17px; margin-bottom: 6px; }
+        .creation-card p { font-size: 12px; color: rgba(248,244,236,0.65); margin-bottom: 14px; line-height: 1.4; }
+        .price-tag { font-size: 18px; font-weight: 800; color: var(--accent-gold); margin-bottom: 12px; }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-gold), #b8860b);
+            color: var(--dark-green);
+            box-shadow: 0 8px 25px rgba(230,184,92,0.3);
+            width: 100%;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        .modal-body {
+            background: var(--dark-green);
+            border: 1px solid var(--accent-gold);
+            border-radius: 20px;
+            width: 100%; 
+            max-width: 520px;
+            padding: 24px;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 16px; left: 16px;
+            background: none; border: none;
+            color: var(--cream); font-size: 22px; cursor: pointer;
+            z-index: 10;
+        }
+
+        .cart-items-list { margin: 16px 0; max-height: 220px; overflow-y: auto; }
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 14px;
+            background: rgba(255,255,255,0.02);
+            margin-bottom: 6px;
+            border-radius: 8px;
+        }
+
+        .qty-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border);
+            color: #fff;
+            border-radius: 6px;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qty-btn:hover { background: var(--accent-gold); color: var(--dark-green); }
+
+        .tax-summary {
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed var(--glass-border);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+        .tax-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: rgba(248, 244, 236, 0.8);
+        }
+        .tax-row.total {
+            border-top: 1px solid var(--glass-border);
+            padding-top: 8px;
+            font-weight: 800;
+            font-size: 16px;
+            color: var(--accent-gold);
+            margin-bottom: 0;
+        }
+
+        /* Stats & Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            padding: 10px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-card h4 { font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+        .stat-card div { font-size: 15px; font-weight: 800; color: var(--accent-gold); }
+
+        .cashier-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .cashier-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .table-badge { background: var(--accent-gold); color: var(--dark-green); padding: 4px 10px; border-radius: 20px; font-weight: 800; font-size: 12px; }
+        .status-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border);
+            color: var(--cream);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .status-btn.preparing { background: #d97706; color: #fff; }
+        .status-btn.done { background: #059669; color: #fff; }
+
+        .btn-action-tool {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
+            color: var(--cream);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-action-tool:hover { background: var(--accent-gold); color: var(--dark-green); }
+        .btn-wa { border-color: #25d366; color: #25d366; }
+        .btn-wa:hover { background: #25d366; color: #fff; }
+
+        .admin-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.03);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 1px solid var(--glass-border);
+        }
+        .admin-item-row img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+    <div id="toast-container"></div>
+
+    <!-- Welcome Overlay -->
+    <div class="welcome-overlay" id="welcome-modal">
+        <div class="welcome-card">
+            <button class="modal-close" onclick="closeWelcomeModal()">✕</button>
+
+            <div class="logo" style="font-size: 28px; margin-bottom: 12px;">VELORA <span>COFFEE</span></div>
+            
+            <div id="welcome-card-content">
+                <h2>أهلاً بك في ڤيلورا 👋</h2>
+                <p>أدخل رقم الموبايل ورقم الترابيزة للبدء في تصفح المنيو.</p>
+                
+                <div id="returning-msg" class="returning-banner"></div>
+
+                <div class="form-group">
+                    <label>رقم الموبايل:</label>
+                    <input type="tel" id="cust-phone-input" placeholder="أدخل رقم الموبايل..." oninput="checkCustomerPhone(this.value)">
+                </div>
+                <div class="form-group">
+                    <label>اسم العميل:</label>
+                    <input type="text" id="cust-name-input" placeholder="أدخل اسمك هنا...">
+                </div>
+                <div class="form-group">
+                    <label>رقم الترابيزة:</label>
+                    <input type="number" id="cust-table-input" placeholder="مثال: 5" min="1" max="50">
+                </div>
+                <button class="btn btn-primary" onclick="submitWelcome()">تصفح المنيو و أضف للطلبات ☕</button>
+            </div>
+
+            <div id="lockout-card-content" style="display: none;">
+                <h2 style="color: #ff5555; margin-bottom: 12px;">🔒 تم قفل النظام للترابيزة</h2>
+                <p style="color: #f8f4ec; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                    تم تجاوز الحد الأقصى للمحاولات الخاطئة (5 محاولات) لرمز الترابيزة رقم <strong id="locked-table-num" style="color: var(--accent-gold);">--</strong>.<br><br>
+                    يرجى إبلاغ الكاشير أو المدير لإلغاء القفل وإعادة المحاولة.
+                </p>
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button class="btn btn-primary" style="background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: var(--cream);" onclick="tryUnlockCustomerCheck()">إعادة الفحص 🔄</button>
+                    <button class="btn btn-primary" style="background: rgba(255,85,85,0.2); border: 1px solid #ff5555; color: #ff5555;" onclick="closeWelcomeModal()">إغلاق النافذة ✕</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="logo">VELORA <span>COFFEE</span></div>
+        <div class="nav-tools">
+            <button class="btn-dash" onclick="openAdminPasswordModal()">⚙️ لوحة المدير</button>
+            <button class="btn-dash" onclick="openCashierLoginModal()">📊 الكاشير</button>
+            <div class="cart-trigger" id="cart-nav-btn" onclick="openCartModal()">
+                🛒 <span>السلة</span>
+                <div class="cart-badge" id="cart-count">0</div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="user-welcome-tag" id="user-display-tag">أهلاً بك ✨</div>
+        <h1>استمتع بأفضل تجربة قهوة من ترابيزتك</h1>
+        <p>اختر مشروباتك بحرية، وعندما تنتهي اضغط على <b>السلة</b> لمراجعة الطلب وتأكيده بإدخال رمز الترابيزة!</p>
+
+        <div class="live-order-tracker" id="customer-order-tracker">
+            <div class="tracker-header">
+                <div>
+                    <strong id="tracker-order-title" style="color:var(--cream); font-size:16px; display:block;">طلبك قيد التحضير الآن...</strong>
+                    <div id="tracker-order-items" style="font-size:13px; color:rgba(255,255,255,0.75); margin-top:4px;"></div>
+                </div>
+                <span class="tracker-status-tag" id="tracker-status-badge">جاري التحضير ⏳</span>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
+                <button class="btn-action-tool btn-wa" onclick="sendWhatsAppReceiptFromTracker()">📲 استلام الفاتورة على الواتساب</button>
+                <button class="btn-action-tool" onclick="printReceiptFromTracker()">🖨️ طباعة الإيصال</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+        <input type="text" class="search-input" id="menu-search-input" placeholder="🔍 ابحث عن مشروبك المفضل..." oninput="filterMenuGrid(this.value)">
+    </div>
+
+    <!-- Category Filter Tabs -->
+    <div class="category-tabs">
+        <button class="cat-btn active" onclick="setCategoryFilter('all', this)">✨ الكل</button>
+        <button class="cat-btn" onclick="setCategoryFilter('cold', this)">❄️ مشروبات باردة</button>
+        <button class="cat-btn" onclick="setCategoryFilter('hot', this)">☕ مشروبات ساخنة</button>
+        <button class="cat-btn" onclick="setCategoryFilter('desserts', this)">🍰 حلويات</button>
+    </div>
+
+    <!-- Menu Section -->
+    <section>
+        <h2 class="section-title">قائمة المشروبات ☕</h2>
+        <div class="creations-grid" id="menu-grid"></div>
+    </section>
+
+    <!-- Cart Modal -->
+    <div class="modal-overlay" id="cart-modal">
+        <div class="modal-body">
+            <button class="modal-close" onclick="closeCartModal()">✕</button>
+            <h2 style="color: var(--accent-gold); margin-bottom: 6px; font-size: 18px;">🛒 سلة الطلبات لـ (<span id="cart-user-info">--</span>)</h2>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">تأكد من طلباتك ويمكنك تعديل الكميات قبل الإرسال النهائي.</p>
+
+            <div class="cart-items-list" id="cart-items-container"></div>
+
+            <div class="tax-summary">
+                <div class="tax-row">
+                    <span>المجموع الفرعي:</span>
+                    <span id="cart-subtotal">0.00 ج.م</span>
+                </div>
+                <div class="tax-row">
+                    <span>ضريبة المبيعات (14%):</span>
+                    <span id="cart-tax">0.00 ج.م</span>
+                </div>
+                <div class="tax-row total">
+                    <span>الإجمالي النهائى:</span>
+                    <span id="cart-total-price">0.00 ج.م</span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="openOrderPinModal()">
+                🚀 تأكيد الطلب وإرساله للكاشير
+            </button>
+        </div>
+    </div>
+
+    <!-- Order PIN Verification Modal -->
+    <div class="modal-overlay" id="order-pin-modal" style="z-index: 1500;">
+        <div class="modal-body" style="max-width: 400px; text-align: center;">
+            <button class="modal-close" onclick="closeOrderPinModal()">✕</button>
+            <h2 style="color: var(--accent-gold); margin-bottom: 8px; font-size: 20px;">🔐 تأكيد الطلب بالرمز السري</h2>
+            <p style="font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 18px; line-height: 1.5;">
+                أدخل رمز الترابيزة اليومي (3 أرقام) للترابيزة <strong style="color: var(--accent-gold);" id="pin-modal-table-num">#--</strong> لإرسال الطلب فوراً:
+            </p>
+
+            <form onsubmit="confirmAndSubmitOrder(event)">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <input type="password" id="order-pin-input" placeholder="***" maxlength="3" autofocus required
+                           style="text-align: center; letter-spacing: 10px; font-weight: 900; font-size: 24px; color: var(--accent-gold); background: rgba(0,0,0,0.3);">
+                </div>
+                <button type="submit" class="btn btn-primary" style="font-size: 15px;">
+                    🚀 إرسال الطلب النهائي
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cashier Login Modal -->
+    <div class="modal-overlay" id="cashier-login-modal">
+        <div class="modal-body" style="max-width: 380px; text-align: center;">
+            <button class="modal-close" onclick="closeCashierLoginModal()">✕</button>
+            <h2 style="color: var(--accent-gold); margin-bottom: 12px; font-size: 18px;">📊 تسجيل دخول الكاشير والبارستا</h2>
+            <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-bottom: 16px;">أدخل اليوزر والباسورد الخاص بك</p>
+            <form onsubmit="verifyCashierLogin(event)">
+                <div class="form-group">
+                    <label>اسم المستخدم (اليوزر):</label>
+                    <input type="text" id="cashier-user-input" placeholder="ادخل اليوزر..." style="text-align: center;" required>
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور:</label>
+                    <input type="password" id="cashier-pass-input" placeholder="ادخل الباسورد..." style="text-align: center;" required>
+                </div>
+                <button type="submit" class="btn btn-primary">دخول الكاشير ☕</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cashier Dashboard Modal -->
+    <div class="modal-overlay" id="cashier-modal">
+        <div class="modal-body">
+            <button class="modal-close" onclick="closeCashierModal()">✕</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="color: var(--accent-gold); font-size: 19px;">📊 شاشة طلبات الكاشير</h2>
+                <span id="active-cashier-badge" style="background: rgba(230,184,92,0.15); border: 1px solid var(--accent-gold); color: var(--accent-gold); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;"></span>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <div style="font-size: 11px; color: rgba(255,255,255,0.6);">الشيفت النشط حالياً:</div>
+                        <strong id="cashier-shift-tag" style="color: var(--accent-gold); font-size: 15px;">الشيفت الأول (صباحي)</strong>
+                    </div>
+                    <button class="btn btn-primary" onclick="closeCashierShift()" style="width: auto; background: linear-gradient(135deg, #e53e3e, #9b2c2c); border: none; font-size: 12px; padding: 8px 14px;">
+                        🔒 تقفيل الشيفت الحالي وتصفير الشاشة
+                    </button>
+                </div>
+            </div>
+
+            <div style="background: rgba(230,184,92,0.1); border: 1px solid var(--accent-gold); border-radius: 12px; padding: 12px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 13px; font-weight: bold; color: var(--accent-gold);">🔑 رمز الترابيزة الحالي: <span id="cashier-current-pin" style="font-size: 18px; color: #fff; letter-spacing: 2px;">---</span></span>
+                    <button class="btn btn-primary" onclick="generateNewPin()" style="width: auto; padding: 4px 10px; font-size: 11px;">توليد كود جديد 🎲</button>
+                </div>
+                <div id="cashier-locked-tables-container" style="margin-top: 10px;"></div>
+            </div>
+
+            <div id="cashier-orders-list"></div>
+        </div>
+    </div>
+
+    <!-- Password Verification Modal (Admin) -->
+    <div class="modal-overlay" id="password-modal">
+        <div class="modal-body" style="max-width: 360px; text-align: center;">
+            <button class="modal-close" onclick="closePasswordModal()">✕</button>
+            <h2 style="color: var(--accent-gold); margin-bottom: 12px; font-size: 18px;">🔒 دخول لوحة المدير</h2>
+            <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-bottom: 16px; font-weight:600;">ادخل كلمة المرور</p>
+            <form onsubmit="verifyAdminPassword(event)">
+                <div class="form-group">
+                    <input type="password" id="admin-pass-input" placeholder="ادخل كلمة المرور..." style="text-align: center; font-size: 16px;" required>
+                </div>
+                <button type="submit" class="btn btn-primary">دخول 🔑</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin / Manager Dashboard Modal -->
+    <div class="modal-overlay" id="admin-modal">
+        <div class="modal-body">
+            <button class="modal-close" onclick="closeAdminModal()">✕</button>
+            <h2 style="color: var(--accent-gold); margin-bottom: 16px; font-size: 20px;">⚙️ لوحة تحكم المدير</h2>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>مبيعات الشيفت الحالي</h4>
+                    <div id="stat-total-sales">0.00 ج.م</div>
+                </div>
+                <div class="stat-card">
+                    <h4>طلبات الشيفت الحالي</h4>
+                    <div id="stat-orders-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>ضرائب الشيفت (14%)</h4>
+                    <div id="stat-total-tax">0.00 ج.م</div>
+                </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">📂 أرشيف ومراجعة الشيفتات (القديمة والجديدة)</h3>
+                <div id="admin-shifts-history-list"></div>
+            </div>
+
+            <div style="background: rgba(230,184,92,0.1); border: 1px solid var(--accent-gold); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 8px;">🔑 رمز الترابيزة السري اليومي (3 أرقام)</h3>
+                <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 12px;">تأكد من كتابة هذا الرقم للزبائن أو على الترابيزات لمنع الطلبات من خارج المكان.</p>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #fff;" id="admin-current-pin">---</div>
+                    <button class="btn btn-primary" onclick="generateNewPin()" style="width:auto; padding: 8px 16px;">توليد كود جديد 🎲</button>
+                </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">🚫 الترابيزات المحظورة (تجاوزت 5 محاولات)</h3>
+                <div id="admin-locked-tables-list"></div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">👤 إنشاء حساب كاشير جديد</h3>
+                <form id="add-cashier-form" onsubmit="addNewCashier(event)">
+                    <div class="form-group">
+                        <label>اسم الموظف / الكاشير:</label>
+                        <input type="text" id="cashier-emp-name" placeholder="مثال: أحمد محمود" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group">
+                            <label>اسم المستخدم (اليوزر):</label>
+                            <input type="text" id="cashier-emp-user" placeholder="مثال: ahmed1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>كلمة المرور (الباسورد):</label>
+                            <input type="password" id="cashier-emp-pass" placeholder="مثال: 123456" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 4px;">إضافة حساب الكاشير ➕</button>
+                </form>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">👥 حسابات الكاشير الحالية</h3>
+                <div id="admin-cashiers-list"></div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">🔒 تغيير كلمة مرور المدير الرئيسية</h3>
+                <form id="change-pass-form" onsubmit="changeAdminPassword(event)">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group">
+                            <label>كلمة المرور الحالية:</label>
+                            <input type="password" id="curr-pass-input" placeholder="ادخل كلمة المرور الحالية..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>كلمة المرور الجديدة:</label>
+                            <input type="password" id="new-pass-input" placeholder="ادخل كلمة المرور الجديدة..." required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 4px;">تحديث كلمة مرور المدير 🔑</button>
+                </form>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">➕ إضافة مشروب جديد للمنيو</h3>
+                
+                <form id="add-drink-form" onsubmit="addNewDrink(event)">
+                    <div class="form-group">
+                        <label>اسم المشروب:</label>
+                        <input type="text" id="admin-drink-name" placeholder="مثال: سبانيش لاتيه" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>تصنيف المشروب:</label>
+                        <select id="admin-drink-category">
+                            <option value="cold">مشروبات باردة ❄️</option>
+                            <option value="hot">مشروبات ساخنة ☕</option>
+                            <option value="desserts">حلويات 🍰</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>السعر (قبل الضريبة):</label>
+                        <input type="number" id="admin-drink-price" placeholder="مثال: 70" min="1" step="0.5" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>وصف المشروب:</label>
+                        <textarea id="admin-drink-desc" rows="2" placeholder="وصف المشروب والمكونات..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>صورة المشروب (من الموبايل):</label>
+                        <input type="file" id="admin-drink-img" accept="image/*" required style="padding: 6px;">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="margin-top: 8px;">حفظ وإضافة للمنيو ☕</button>
+                </form>
+            </div>
+
+            <h3 style="color: var(--accent-gold); font-size: 15px; margin-bottom: 12px;">📋 إدارة المشروبات الحالية</h3>
+            <div id="admin-drinks-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. Firebase Initialization (تهيئة الفايربيس)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Sound alert for new orders
+        function playOrderAlertSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) { console.log('Audio alert allowed after interaction'); }
+        }
+
+        if (!localStorage.getItem('velora_admin_pass')) {
+            localStorage.setItem('velora_admin_pass', '1234');
+        }
+
+        if (!localStorage.getItem('velora_active_shift')) {
+            localStorage.setItem('velora_active_shift', 'الشيفت الأول (صباحي)');
+        }
+        if (!localStorage.getItem('velora_shift_start_time')) {
+            localStorage.setItem('velora_shift_start_time', new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }));
+        }
+
+        // Sync Today PIN
+        db.ref('todayPin').on('value', (snapshot) => {
+            const pin = snapshot.val();
+            if (pin) {
+                localStorage.setItem('velora_today_pin', pin);
+                renderPinViews();
+            } else {
+                generateNewPin(false);
+            }
+        });
+
+        function generateNewPin(showAlert = true) {
+            const newPin = Math.floor(100 + Math.random() * 900).toString();
+            localStorage.setItem('velora_today_pin', newPin);
+            db.ref('todayPin').set(newPin);
+            if (showAlert) {
+                showToast(`تم تغيير كود الترابيزات السري إلى: ${newPin}`);
+            }
+            renderPinViews();
+            return newPin;
+        }
+
+        function renderPinViews() {
+            const pin = localStorage.getItem('velora_today_pin') || '---';
+            const adminPinEl = document.getElementById('admin-current-pin');
+            const cashierPinEl = document.getElementById('cashier-current-pin');
+            if (adminPinEl) adminPinEl.textContent = pin;
+            if (cashierPinEl) cashierPinEl.textContent = pin;
+        }
+
+        // Sync Cashiers
+        const initialCashiers = [
+            { id: 1, name: "الكاشير الرئيسي", username: "cashier", pass: "1234" }
+        ];
+
+        let cashiersList = JSON.parse(localStorage.getItem('velora_cashiers')) || initialCashiers;
+        
+        db.ref('cashiers').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                cashiersList = Array.isArray(val) ? val : Object.values(val);
+                localStorage.setItem('velora_cashiers', JSON.stringify(cashiersList));
+                renderAdminCashiersList();
+            } else {
+                db.ref('cashiers').set(cashiersList);
+            }
+        });
+
+        // Sync Drinks
+        const initialDrinks = [
+            { id: 1, name: "آيس لاتيه", category: "cold", price: 65, desc: "إسبريسو غني مع حليب بارد ولمسة فانيليا.", img: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=80" },
+            { id: 2, name: "كراميل فرابيه", category: "cold", price: 80, desc: "كراميل، إسبريسو، وكريمة مخفوقة.", img: "https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600&auto=format&fit=crop&q=80" },
+            { id: 3, name: "موكاتشينو شوكولا", category: "hot", price: 75, desc: "شوكولاتة فاخرة ممزوجة بالإسبريسو والحليب.", img: "https://images.unsplash.com/photo-1578314675249-a6910f80cc4e?w=600&auto=format&fit=crop&q=80" }
+        ];
+
+        let drinksList = JSON.parse(localStorage.getItem('velora_drinks')) || initialDrinks;
+        let selectedCategory = 'all';
+
+        db.ref('drinks').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                drinksList = Array.isArray(val) ? val : Object.values(val);
+                localStorage.setItem('velora_drinks', JSON.stringify(drinksList));
+                renderMenuGrid();
+                renderAdminDrinksList();
+            } else {
+                db.ref('drinks').set(drinksList);
+            }
+        });
+
+        // Sync Customers
+        let customersDB = JSON.parse(localStorage.getItem('velora_customers') || '{}');
+        db.ref('customers').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                customersDB = val;
+                localStorage.setItem('velora_customers', JSON.stringify(customersDB));
+            }
+        });
+
+        // Sync Locked Tables
+        db.ref('lockedTables').on('value', (snapshot) => {
+            const val = snapshot.val();
+            const lockedTables = val || {};
+            localStorage.setItem('velora_locked_tables', JSON.stringify(lockedTables));
+            renderAdminLockedTables();
+        });
+
+        // Sync Live Orders (Realtime to Cashier Screen)
+        let prevOrdersCount = 0;
+        db.ref('orders').on('value', (snapshot) => {
+            const val = snapshot.val();
+            const orders = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
+            
+            if (orders.length > prevOrdersCount && prevOrdersCount !== 0) {
+                playOrderAlertSound();
+            }
+            prevOrdersCount = orders.length;
+
+            localStorage.setItem('velora_orders', JSON.stringify(orders));
+            renderCashierOrders();
+            renderAdminStats();
+            syncCustomerOrderTracker();
+        });
+
+        // Sync Shifts History
+        db.ref('shiftsHistory').on('value', (snapshot) => {
+            const val = snapshot.val();
+            const history = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
+            localStorage.setItem('velora_shifts_history', JSON.stringify(history));
+            renderAdminShiftsHistory();
+        });
+
+        let customerName = "";
+        let customerPhone = "";
+        let tableNumber = "";
+        let isReturningCustomer = false;
+        let cart = [];
+        let loggedInCashierName = "";
+
+        let activeOrderId = localStorage.getItem('velora_active_order_id') || null;
+
+        function closeWelcomeModal() {
+            document.getElementById('welcome-modal').classList.add('hidden');
+        }
+
+        function checkCustomerPhone(phone) {
+            const cleanPhone = phone.trim();
+            const msgBanner = document.getElementById('returning-msg');
+            const nameInput = document.getElementById('cust-name-input');
+
+            if (cleanPhone && customersDB[cleanPhone]) {
+                nameInput.value = customersDB[cleanPhone];
+                msgBanner.style.display = 'block';
+                msgBanner.textContent = `اتنبسطنا إننا شفنا ك تاني يا ${customersDB[cleanPhone]}! ✨`;
+                isReturningCustomer = true;
+            } else {
+                msgBanner.style.display = 'none';
+                msgBanner.textContent = '';
+                isReturningCustomer = false;
+            }
+        }
+
+        function submitWelcome() {
+            const phoneInput = document.getElementById('cust-phone-input').value.trim();
+            const nameInput = document.getElementById('cust-name-input').value.trim();
+            const tableInput = document.getElementById('cust-table-input').value.trim();
+
+            if (!phoneInput || !nameInput || !tableInput) {
+                showToast('من فضلك أدخل رقم الموبايل، الاسم، ورقم الترابيزة!');
+                return;
+            }
+
+            let lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+
+            if (lockedTables[tableInput] && lockedTables[tableInput].isLocked) {
+                showLockoutScreen(tableInput);
+                return;
+            }
+
+            customerPhone = phoneInput;
+            customerName = nameInput;
+            tableNumber = tableInput;
+
+            customersDB[customerPhone] = customerName;
+            localStorage.setItem('velora_customers', JSON.stringify(customersDB));
+            db.ref(`customers/${customerPhone}`).set(customerName);
+
+            let greetingTagText = isReturningCustomer
+                ? `اتنبسطنا إننا شفنا ك تاني يا ${customerName} (ترابيزة #${tableNumber}) ☕`
+                : `أهلاً بك يا ${customerName} (ترابيزة #${tableNumber}) ☕`;
+
+            document.getElementById('user-display-tag').textContent = greetingTagText;
+            document.getElementById('cart-user-info').textContent = `${customerName} - ترابيزة ${tableNumber}`;
+            closeWelcomeModal();
+
+            syncCustomerOrderTracker();
+        }
+
+        function showLockoutScreen(tableNum) {
+            document.getElementById('locked-table-num').textContent = tableNum;
+            document.getElementById('welcome-card-content').style.display = 'none';
+            document.getElementById('lockout-card-content').style.display = 'block';
+            document.getElementById('welcome-modal').classList.remove('hidden');
+        }
+
+        function tryUnlockCustomerCheck() {
+            const tableInput = document.getElementById('cust-table-input').value.trim() || tableNumber;
+            let lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+
+            if (!tableInput || !lockedTables[tableInput] || !lockedTables[tableInput].isLocked) {
+                document.getElementById('welcome-card-content').style.display = 'block';
+                document.getElementById('lockout-card-content').style.display = 'none';
+                showToast('تم فك الحظر، يمكنك الآن تصفح المنيو وإرسال الطلب.');
+            } else {
+                showToast('ما زالت هذه الترابيزة محظورة! اطلب من الكاشير إلغاء الحظر.');
+            }
+        }
+
+        function unlockTable(tableNum) {
+            let lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+            delete lockedTables[tableNum];
+            localStorage.setItem('velora_locked_tables', JSON.stringify(lockedTables));
+            db.ref('lockedTables').set(lockedTables);
+            
+            renderAdminLockedTables();
+            renderCashierOrders();
+            showToast(`تم فك الحظر عن ترابيزة #${tableNum} بنجاح!`);
+        }
+
+        function renderAdminLockedTables() {
+            const lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+            const adminContainer = document.getElementById('admin-locked-tables-list');
+            const cashierContainer = document.getElementById('cashier-locked-tables-container');
+            
+            const entries = Object.entries(lockedTables).filter(([_, data]) => data && data.isLocked);
+
+            const contentHTML = entries.length === 0
+                ? `<p style="text-align:center; color:rgba(255,255,255,0.5); font-size:12px;">لا توجد ترابيزات محظورة حالياً.</p>`
+                : entries.map(([tableNum, data]) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,85,85,0.1); border:1px solid #ff5555; padding:6px 12px; border-radius:8px; margin-bottom:6px;">
+                        <span style="font-size:13px; font-weight:bold;">ترابيزة #${tableNum} (العميل: ${data.name || 'مجهول'})</span>
+                        <button onclick="unlockTable('${tableNum}')" style="background:#ff5555; color:#fff; border:none; border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">إلغاء الحظر 🔓</button>
+                    </div>
+                `).join('');
+
+            if (adminContainer) adminContainer.innerHTML = contentHTML;
+            if (cashierContainer) cashierContainer.innerHTML = contentHTML;
+        }
+
+        function setCategoryFilter(category, btnElement) {
+            selectedCategory = category;
+            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+            if (btnElement) btnElement.classList.add('active');
+            filterMenuGrid(document.getElementById('menu-search-input').value);
+        }
+
+        function renderMenuGrid(itemsToRender) {
+            const container = document.getElementById('menu-grid');
+            
+            let list = itemsToRender || drinksList;
+            if (selectedCategory !== 'all') {
+                list = list.filter(d => (d.category || 'cold') === selectedCategory);
+            }
+
+            if (list.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); grid-column: 1/-1;">لا توجد مشروبات متطابقة في هذا التصنيف.</p>`;
+                return;
+            }
+
+            container.innerHTML = list.map((item) => `
+                <div class="creation-card">
+                    <img src="${item.img}" alt="${item.name}">
+                    <div>
+                        <h3>${item.name}</h3>
+                        <p>${item.desc || ''}</p>
+                    </div>
+                    <div>
+                        <div class="price-tag">${item.price} ج.م <span style="font-size:11px; font-weight:normal; color:rgba(255,255,255,0.5);">(+14% ضريبة)</span></div>
+                        <button class="btn btn-primary" onclick="addToCart(${item.id})">+ أضف للطلب</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterMenuGrid(query) {
+            const q = query.toLowerCase().trim();
+            const filtered = drinksList.filter(d => d.name.toLowerCase().includes(q) || (d.desc && d.desc.toLowerCase().includes(q)));
+            renderMenuGrid(filtered);
+        }
+
+        function addToCart(id) {
+            const drink = drinksList.find(d => Number(d.id) === Number(id));
+            if (!drink) return;
+
+            const existingItem = cart.find(item => Number(item.id) === Number(drink.id));
+            if (existingItem) {
+                existingItem.qty += 1;
+            } else {
+                cart.push({ ...drink, qty: 1 });
+            }
+            updateCartBadge();
+            showToast(`تمت إضافة ${drink.name} للسلة ☕`);
+        }
+
+        function updateCartBadge() {
+            const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+            document.getElementById('cart-count').textContent = totalQty;
+        }
+
+        function changeQty(id, delta) {
+            const item = cart.find(i => Number(i.id) === Number(id));
+            if (item) {
+                item.qty += delta;
+                if (item.qty <= 0) {
+                    cart = cart.filter(i => Number(i.id) !== Number(id));
+                }
+            }
+            updateCartUI();
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(i => Number(i.id) !== Number(id));
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            updateCartBadge();
+            const container = document.getElementById('cart-items-container');
+            
+            if (cart.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); padding: 20px;">سلة الطلبات فارغة حالياً!</p>`;
+                document.getElementById('cart-subtotal').textContent = "0.00 ج.م";
+                document.getElementById('cart-tax').textContent = "0.00 ج.م";
+                document.getElementById('cart-total-price').textContent = "0.00 ج.م";
+                return;
+            }
+
+            let subtotal = 0;
+            container.innerHTML = cart.map((item) => {
+                const itemTotal = item.price * item.qty;
+                subtotal += itemTotal;
+                return `
+                    <div class="cart-item">
+                        <div>
+                            <div style="font-weight:700;">${item.name}</div>
+                            <div style="font-size:12px; color:var(--accent-gold);">${item.price} ج.م × ${item.qty} = ${itemTotal.toFixed(2)} ج.م</div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button class="qty-btn" onclick="changeQty(${item.id}, -1)">-</button>
+                            <span style="font-weight:bold; font-size:14px; min-width:18px; text-align:center;">${item.qty}</span>
+                            <button class="qty-btn" onclick="changeQty(${item.id}, 1)">+</button>
+                            <button onclick="removeFromCart(${item.id})" style="background:rgba(255,85,85,0.15); border:1px solid #ff5555; color:#ff5555; border-radius:6px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:12px; margin-right:6px;">حذف</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const tax = subtotal * 0.14;
+            const total = subtotal + tax;
+
+            document.getElementById('cart-subtotal').textContent = `${subtotal.toFixed(2)} ج.م`;
+            document.getElementById('cart-tax').textContent = `${tax.toFixed(2)} ج.م`;
+            document.getElementById('cart-total-price').textContent = `${total.toFixed(2)} ج.م`;
+        }
+
+        function openCartModal() { 
+            updateCartUI();
+            document.getElementById('cart-modal').classList.add('active'); 
+        }
+        function closeCartModal() { document.getElementById('cart-modal').classList.remove('active'); }
+
+        function openOrderPinModal() {
+            if (cart.length === 0) {
+                showToast('السلة فارغة! اضف بعض المشروبات أولاً.');
+                return;
+            }
+
+            let lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+
+            if (lockedTables[tableNumber] && lockedTables[tableNumber].isLocked) {
+                closeCartModal();
+                showLockoutScreen(tableNumber);
+                return;
+            }
+
+            document.getElementById('pin-modal-table-num').textContent = `#${tableNumber || '--'}`;
+            document.getElementById('order-pin-input').value = '';
+            document.getElementById('order-pin-modal').classList.add('active');
+        }
+
+        function closeOrderPinModal() {
+            document.getElementById('order-pin-modal').classList.remove('active');
+        }
+
+        function confirmAndSubmitOrder(event) {
+            event.preventDefault();
+
+            const inputPin = document.getElementById('order-pin-input').value.trim();
+            const activePin = localStorage.getItem('velora_today_pin');
+            let lockedTables = JSON.parse(localStorage.getItem('velora_locked_tables') || '{}');
+
+            if (inputPin !== activePin) {
+                let attempts = (lockedTables[tableNumber]?.attempts || 0) + 1;
+
+                if (attempts >= 5) {
+                    lockedTables[tableNumber] = { isLocked: true, attempts: 5, phone: customerPhone, name: customerName };
+                    localStorage.setItem('velora_locked_tables', JSON.stringify(lockedTables));
+                    db.ref('lockedTables').set(lockedTables);
+                    
+                    closeOrderPinModal();
+                    closeCartModal();
+                    showLockoutScreen(tableNumber);
+                    renderAdminLockedTables();
+                    renderCashierOrders();
+                } else {
+                    lockedTables[tableNumber] = { isLocked: false, attempts: attempts };
+                    localStorage.setItem('velora_locked_tables', JSON.stringify(lockedTables));
+                    db.ref('lockedTables').set(lockedTables);
+                    showToast(`رمز الترابيزة غير صحيح! متبقي لديك ${5 - attempts} محاولات.`);
+                }
+                return;
+            }
+
+            lockedTables[tableNumber] = { isLocked: false, attempts: 0 };
+            localStorage.setItem('velora_locked_tables', JSON.stringify(lockedTables));
+            db.ref('lockedTables').set(lockedTables);
+
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            const tax = subtotal * 0.14;
+            const total = subtotal + tax;
+
+            const itemsFormatted = cart.map(item => `${item.name} (${item.qty})`);
+
+            const newOrder = {
+                id: Date.now(),
+                customerName: customerName || "عميل بدون اسم",
+                customerPhone: customerPhone || "--",
+                tableNumber: tableNumber || "غير محدد",
+                items: itemsFormatted,
+                subtotal: subtotal,
+                tax: tax,
+                total: total,
+                time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+                status: 'جاري التحضير'
+            };
+
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            orders.unshift(newOrder);
+            
+            db.ref('orders').set(orders);
+
+            activeOrderId = newOrder.id;
+            localStorage.setItem('velora_active_order_id', activeOrderId);
+
+            cart = [];
+            updateCartUI();
+            closeOrderPinModal();
+            closeCartModal();
+            renderCashierOrders();
+            syncCustomerOrderTracker();
+
+            showToast('تم التأكد من الكود وإرسال طلبك بنجاح للكاشير والبارستا! ☕');
+        }
+
+        function syncCustomerOrderTracker() {
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            const activeOrder = orders.find(o => Number(o.id) === Number(activeOrderId));
+            const trackerContainer = document.getElementById('customer-order-tracker');
+
+            if (!activeOrder) {
+                trackerContainer.style.display = 'none';
+                return;
+            }
+
+            trackerContainer.style.display = 'block';
+            document.getElementById('tracker-order-items').textContent = `المشروبات: ${activeOrder.items.join(' ، ')}`;
+
+            const badge = document.getElementById('tracker-status-badge');
+            const titleEl = document.getElementById('tracker-order-title');
+
+            if (activeOrder.status === 'تم التسليم') {
+                badge.textContent = "تم التسليم ✅";
+                badge.classList.add('done');
+                titleEl.textContent = "تم تسليم الطلب للترابيزة بنجاح ❤️";
+            } else {
+                badge.textContent = "جاري التحضير ⏳";
+                badge.classList.remove('done');
+                titleEl.textContent = "طلبك قيد التحضير الآن...";
+            }
+        }
+
+        // ==========================================
+        // MIZAT: WhatsApp Bill & Print Receipt
+        // ==========================================
+        function sendWhatsAppReceipt(orderId) {
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            const order = orders.find(o => Number(o.id) === Number(orderId));
+            if (!order) {
+                showToast('لم يتم العثور على تفاصيل الطلب!');
+                return;
+            }
+
+            let phone = order.customerPhone ? order.customerPhone.replace(/\D/g, '') : '';
+            if (phone.length === 11 && phone.startsWith('01')) {
+                phone = '2' + phone; // Add Egypt code automatically
+            }
+
+            let text = `☕ *فاتورة Velora Coffee*\n`;
+            text += `------------------------------------\n`;
+            text += `👤 *العميل:* ${order.customerName}\n`;
+            text += `🪑 *رقم الترابيزة:* #${order.tableNumber}\n`;
+            text += `⏰ *الوقت:* ${order.time}\n`;
+            text += `------------------------------------\n`;
+            text += `📋 *قائمة المشروبات:*\n`;
+            order.items.forEach(item => { text += `• ${item}\n`; });
+            text += `------------------------------------\n`;
+            text += `💵 *المجموع الفرعي:* ${(order.subtotal || 0).toFixed(2)} ج.م\n`;
+            text += `🧾 *الضريبة (14%):* ${(order.tax || 0).toFixed(2)} ج.م\n`;
+            text += `💰 *الإجمالي النهائي:* ${(order.total || 0).toFixed(2)} ج.م\n`;
+            text += `------------------------------------\n`;
+            text += `شكراً لزيارتك ڤيلورا كوفي! نتمنى لك يوماً سعيداً ✨`;
+
+            const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        function sendWhatsAppReceiptFromTracker() {
+            if (activeOrderId) sendWhatsAppReceipt(activeOrderId);
+        }
+
+        function printReceipt(orderId) {
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            const order = orders.find(o => Number(o.id) === Number(orderId));
+            if (!order) return;
+
+            const printWindow = window.open('', '_blank', 'width=380,height=600');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html dir="rtl" lang="ar">
+                <head>
+                    <title>إيصال فاتورة - Velora Coffee</title>
+                    <style>
+                        body { font-family: 'Cairo', sans-serif; text-align: center; padding: 15px; margin: 0; color: #000; }
+                        .logo { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+                        .sub { font-size: 11px; color: #555; margin-bottom: 12px; }
+                        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+                        .info-row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+                        .items-list { text-align: right; font-size: 13px; margin: 10px 0; line-height: 1.6; }
+                        .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-top: 6px; }
+                        .footer { font-size: 11px; color: #666; margin-top: 15px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="logo">VELORA COFFEE</div>
+                    <div class="sub">إيصال طلب حراري</div>
+                    <div class="divider"></div>
+                    <div class="info-row"><span>العميل: ${order.customerName}</span><span>ترابيزة: #${order.tableNumber}</span></div>
+                    <div class="info-row"><span>الوقت: ${order.time}</span><span>رقم الطلب: #${order.id.toString().slice(-4)}</span></div>
+                    <div class="divider"></div>
+                    <div class="items-list">
+                        ${order.items.map(i => `<div>• ${i}</div>`).join('')}
+                    </div>
+                    <div class="divider"></div>
+                    <div class="info-row"><span>المجموع:</span><span>${(order.subtotal || 0).toFixed(2)} ج.م</span></div>
+                    <div class="info-row"><span>ضريبة (14%):</span><span>${(order.tax || 0).toFixed(2)} ج.م</span></div>
+                    <div class="total-row"><span>الإجمالي النهائي:</span><span>${(order.total || 0).toFixed(2)} ج.م</span></div>
+                    <div class="divider"></div>
+                    <div class="footer">شكراً لزيارتكم! ☕</div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 300);
+        }
+
+        function printReceiptFromTracker() {
+            if (activeOrderId) printReceipt(activeOrderId);
+        }
+
+        function openCashierLoginModal() {
+            document.getElementById('cashier-user-input').value = '';
+            document.getElementById('cashier-pass-input').value = '';
+            document.getElementById('cashier-login-modal').classList.add('active');
+        }
+        function closeCashierLoginModal() {
+            document.getElementById('cashier-login-modal').classList.remove('active');
+        }
+
+        function verifyCashierLogin(event) {
+            event.preventDefault();
+            const userVal = document.getElementById('cashier-user-input').value.trim();
+            const passVal = document.getElementById('cashier-pass-input').value.trim();
+
+            const foundCashier = cashiersList.find(c => c.username === userVal && c.pass === passVal);
+
+            if (foundCashier) {
+                loggedInCashierName = foundCashier.name;
+                closeCashierLoginModal();
+                openCashierModal();
+            } else {
+                showToast('اسم المستخدم أو كلمة المرور غير صحيحة!');
+            }
+        }
+
+        function openCashierModal() {
+            document.getElementById('active-cashier-badge').textContent = `الموظف: ${loggedInCashierName || 'كاشير'}`;
+            const activeShiftName = localStorage.getItem('velora_active_shift') || 'الشيفت الأول (صباحي)';
+            document.getElementById('cashier-shift-tag').textContent = activeShiftName;
+            renderPinViews();
+            renderAdminLockedTables();
+            renderCashierOrders();
+            document.getElementById('cashier-modal').classList.add('active');
+        }
+        function closeCashierModal() { document.getElementById('cashier-modal').classList.remove('active'); }
+
+        function closeCashierShift() {
+            const currentShiftName = localStorage.getItem('velora_active_shift') || 'الشيفت الأول (صباحي)';
+            const activeOrders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+
+            const totalSales = activeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+            const totalTax = activeOrders.reduce((sum, o) => sum + (o.tax || 0), 0);
+            const startTime = localStorage.getItem('velora_shift_start_time') || '--';
+            const endTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+            if (!confirm(`تقفيل ${currentShiftName}؟ الإجمالي: ${totalSales.toFixed(2)} ج.م`)) return;
+
+            const shiftsHistory = JSON.parse(localStorage.getItem('velora_shifts_history') || '[]');
+            const shiftRecord = {
+                id: Date.now(),
+                shiftName: currentShiftName,
+                cashierName: loggedInCashierName || "الكاشير",
+                date: new Date().toLocaleDateString('ar-EG'),
+                startTime: startTime,
+                endTime: endTime,
+                totalSales: totalSales,
+                totalTax: totalTax,
+                ordersCount: activeOrders.length,
+                orders: activeOrders
+            };
+
+            shiftsHistory.unshift(shiftRecord);
+            
+            db.ref('shiftsHistory').set(shiftsHistory);
+            db.ref('orders').set([]);
+
+            const nextShiftName = (currentShiftName === 'الشيفت الأول (صباحي)') ? 'الشيفت الثاني (مسائي)' : 'الشيفت الأول (صباحي)';
+            localStorage.setItem('velora_active_shift', nextShiftName);
+            localStorage.setItem('velora_shift_start_time', new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }));
+
+            document.getElementById('cashier-shift-tag').textContent = nextShiftName;
+            renderCashierOrders();
+
+            showToast(`تم إغلاق ${currentShiftName} والانتقال إلى ${nextShiftName}!`);
+        }
+
+        function renderCashierOrders() {
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            const container = document.getElementById('cashier-orders-list');
+
+            if (orders.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); padding: 20px;">لا توجد طلبات حية بالشيفت الحالي.</p>`;
+                return;
+            }
+
+            container.innerHTML = orders.map(order => `
+                <div class="cashier-card">
+                    <div class="cashier-header">
+                        <div>
+                            <strong>${order.customerName} (${order.customerPhone})</strong>
+                            <span class="table-badge">ترابيزة #${order.tableNumber}</span>
+                        </div>
+                        <span style="font-size:12px; color:rgba(255,255,255,0.6);">${order.time}</span>
+                    </div>
+                    <div style="font-size:13px; margin-bottom: 8px; color: var(--cream);">
+                        ${order.items.join(' ، ')}
+                    </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-bottom:6px;">
+                        المبلغ: ${(order.subtotal || 0).toFixed(2)} + الضريبة 14%: ${(order.tax || 0).toFixed(2)} ج.م
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; flex-wrap: wrap; gap: 6px;">
+                        <span style="color:var(--accent-gold); font-weight:bold;">الإجمالي: ${(order.total || 0).toFixed(2)} ج.م</span>
+                        <div style="display:flex; gap:6px; flex-wrap: wrap;">
+                            <button class="btn-action-tool btn-wa" onclick="sendWhatsAppReceipt(${order.id})">📲 واتساب</button>
+                            <button class="btn-action-tool" onclick="printReceipt(${order.id})">🖨️ طباعة</button>
+                            <button class="status-btn ${order.status === 'جاري التحضير' ? 'preparing' : ''}" onclick="updateOrderStatus(${order.id}, 'جاري التحضير')">تحضير</button>
+                            <button class="status-btn ${order.status === 'تم التسليم' ? 'done' : ''}" onclick="updateOrderStatus(${order.id}, 'تم التسليم')">تسليم</button>
+                            <button class="status-btn" onclick="deleteOrder(${order.id})" style="color:#ff5555;">حذف</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateOrderStatus(id, status) {
+            let orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            orders = orders.map(o => Number(o.id) === Number(id) ? { ...o, status: status } : o);
+            db.ref('orders').set(orders);
+        }
+
+        function deleteOrder(id) {
+            let orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            orders = orders.filter(o => Number(o.id) !== Number(id));
+            db.ref('orders').set(orders);
+
+            if (Number(id) === Number(activeOrderId)) {
+                activeOrderId = null;
+                localStorage.removeItem('velora_active_order_id');
+            }
+            syncCustomerOrderTracker();
+        }
+
+        function openAdminPasswordModal() {
+            document.getElementById('admin-pass-input').value = '';
+            document.getElementById('password-modal').classList.add('active');
+        }
+        function closePasswordModal() {
+            document.getElementById('password-modal').classList.remove('active');
+        }
+
+        function verifyAdminPassword(event) {
+            event.preventDefault();
+            const inputPass = document.getElementById('admin-pass-input').value;
+            const savedPass = localStorage.getItem('velora_admin_pass') || '1234';
+
+            if (inputPass === savedPass) {
+                closePasswordModal();
+                openAdminModal();
+            } else {
+                showToast('كلمة المرور غير صحيحة!');
+            }
+        }
+
+        function changeAdminPassword(event) {
+            event.preventDefault();
+            const currPass = document.getElementById('curr-pass-input').value;
+            const newPass = document.getElementById('new-pass-input').value;
+            const savedPass = localStorage.getItem('velora_admin_pass') || '1234';
+
+            if (currPass !== savedPass) {
+                showToast('كلمة المرور الحالية غير صحيحة!');
+                return;
+            }
+
+            if (newPass.length < 4) {
+                showToast('كلمة المرور الجديدة يجب أن تكون 4 أحرف/أرقام على الأقل!');
+                return;
+            }
+
+            localStorage.setItem('velora_admin_pass', newPass);
+            document.getElementById('change-pass-form').reset();
+            showToast('تم تغيير كلمة المرور بنجاح! 🔑');
+        }
+
+        function openAdminModal() {
+            renderPinViews();
+            renderAdminStats();
+            renderAdminShiftsHistory();
+            renderAdminLockedTables();
+            renderAdminCashiersList();
+            renderAdminDrinksList();
+            document.getElementById('admin-modal').classList.add('active');
+        }
+        function closeAdminModal() { document.getElementById('admin-modal').classList.remove('active'); }
+
+        function renderAdminStats() {
+            const orders = JSON.parse(localStorage.getItem('velora_orders') || '[]');
+            const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+            const totalTax = orders.reduce((sum, o) => sum + (o.tax || 0), 0);
+
+            document.getElementById('stat-total-sales').textContent = `${totalSales.toFixed(2)} ج.م`;
+            document.getElementById('stat-orders-count').textContent = orders.length;
+            document.getElementById('stat-total-tax').textContent = `${totalTax.toFixed(2)} ج.م`;
+        }
+
+        function renderAdminShiftsHistory() {
+            const container = document.getElementById('admin-shifts-history-list');
+            const history = JSON.parse(localStorage.getItem('velora_shifts_history') || '[]');
+
+            if (history.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); font-size:13px;">لا توجد شيفتات مغلقة ومؤرشفة حتى الآن.</p>`;
+                return;
+            }
+
+            container.innerHTML = history.map((s, idx) => `
+                <div class="cashier-card" style="border-color: rgba(230,184,92,0.4);">
+                    <div class="cashier-header">
+                        <div>
+                            <strong style="color:var(--accent-gold); font-size:15px;">${s.shiftName}</strong>
+                            <div style="font-size:11px; color:rgba(255,255,255,0.6);">الكاشير: ${s.cashierName} | التاريخ: ${s.date}</div>
+                        </div>
+                        <span class="table-badge" style="background:rgba(255,255,255,0.1); color:#fff; border:1px solid var(--glass-border);">شيفت مغلق #${history.length - idx}</span>
+                    </div>
+                    <div style="font-size:12px; margin: 8px 0; color: rgba(255,255,255,0.85);">
+                        ⏱️ التوقيت: من ${s.startTime} إلى ${s.endTime} <br>
+                        📦 عدد الطلبات: ${s.ordersCount} طلبات
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+                        <span style="color:var(--accent-gold); font-weight:bold; font-size:14px;">إجمالي المبيعات: ${s.totalSales.toFixed(2)} ج.م</span>
+                        <button class="btn btn-primary" onclick="toggleShiftDetails(${s.id})" style="width:auto; padding:4px 10px; font-size:11px;">عرض التفاصيل 📋</button>
+                    </div>
+                    <div id="shift-details-${s.id}" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--glass-border); font-size:12px;">
+                        ${s.orders.length === 0 ? '<p style="color:rgba(255,255,255,0.5);">لا توجد طلبيات داخل هذا الشيفت.</p>' : s.orders.map(o => `
+                            <div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+                                <span>ترابيزة #${o.tableNumber} - ${o.items.join('، ')}</span>
+                                <strong style="color:var(--accent-gold);">${(o.total || 0).toFixed(2)} ج.م</strong>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleShiftDetails(id) {
+            const el = document.getElementById(`shift-details-${id}`);
+            if (el) el.style.display = (el.style.display === 'none') ? 'block' : 'none';
+        }
+
+        function addNewCashier(event) {
+            event.preventDefault();
+            const name = document.getElementById('cashier-emp-name').value.trim();
+            const username = document.getElementById('cashier-emp-user').value.trim();
+            const pass = document.getElementById('cashier-emp-pass').value.trim();
+
+            if (cashiersList.some(c => c.username === username)) {
+                showToast('اسم المستخدم هذا موجود بالفعل!');
+                return;
+            }
+
+            const newCashier = { id: Date.now(), name, username, pass };
+            cashiersList.push(newCashier);
+            db.ref('cashiers').set(cashiersList);
+
+            renderAdminCashiersList();
+            document.getElementById('add-cashier-form').reset();
+            showToast(`تم إنشاء حساب للكاشير ${name} بنجاح! 👤`);
+        }
+
+        function renderAdminCashiersList() {
+            const container = document.getElementById('admin-cashiers-list');
+            if (cashiersList.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); font-size:13px;">لا يوجد حسابات كاشير حالياً.</p>`;
+                return;
+            }
+
+            container.innerHTML = cashiersList.map((c) => `
+                <div class="admin-item-row">
+                    <div>
+                        <div style="font-weight:700; font-size:14px;">${c.name}</div>
+                        <div style="font-size:12px; color:var(--accent-gold);">اسم المستخدم: ${c.username}</div>
+                    </div>
+                    <button onclick="deleteCashier(${c.id})" style="background:none; border:none; color:#ff5555; cursor:pointer; font-weight:bold;">حذف 🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteCashier(id) {
+            if (cashiersList.length <= 1) {
+                showToast('يجب أن يتبقى حساب كاشير واحد على الأقل بالنظام!');
+                return;
+            }
+            if (confirm('هل أنت تأكد من حذف هذا الحساب؟')) {
+                cashiersList = cashiersList.filter(c => Number(c.id) !== Number(id));
+                db.ref('cashiers').set(cashiersList);
+                renderAdminCashiersList();
+            }
+        }
+
+        function addNewDrink(event) {
+            event.preventDefault();
+            const name = document.getElementById('admin-drink-name').value.trim();
+            const category = document.getElementById('admin-drink-category').value;
+            const price = parseFloat(document.getElementById('admin-drink-price').value);
+            const desc = document.getElementById('admin-drink-desc').value.trim();
+            const fileInput = document.getElementById('admin-drink-img');
+
+            if (!name || !price || !fileInput.files[0]) {
+                showToast('من فضلك ادخل كل البيانات واختر صورة المشروب!');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const newDrink = { id: Date.now(), name, category, price, desc, img: e.target.result };
+                drinksList.push(newDrink);
+                db.ref('drinks').set(drinksList);
+
+                renderMenuGrid();
+                renderAdminDrinksList();
+                document.getElementById('add-drink-form').reset();
+                showToast('تمت إضافة المشروب بنجاح للمنيو!');
+            };
+
+            reader.readAsDataURL(fileInput.files[0]);
+        }
+
+        function editDrinkPrice(id) {
+            const drink = drinksList.find(d => Number(d.id) === Number(id));
+            if (!drink) return;
+            const newPrice = prompt(`تعديل سعر ${drink.name}:`, drink.price);
+            if (newPrice && !isNaN(newPrice)) {
+                drink.price = parseFloat(newPrice);
+                db.ref('drinks').set(drinksList);
+                renderMenuGrid();
+                renderAdminDrinksList();
+                showToast(`تم تحديث سعر ${drink.name}`);
+            }
+        }
+
+        function renderAdminDrinksList() {
+            const container = document.getElementById('admin-drinks-list');
+            if (drinksList.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:rgba(255,255,255,0.5); font-size:13px;">لا توجد مشروبات مضافة.</p>`;
+                return;
+            }
+
+            container.innerHTML = drinksList.map((item) => `
+                <div class="admin-item-row">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${item.img}" alt="${item.name}">
+                        <div>
+                            <div style="font-weight:700; font-size:14px;">${item.name}</div>
+                            <div style="font-size:12px; color:var(--accent-gold);">${item.price} ج.م</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="editDrinkPrice(${item.id})" style="background:none; border:none; color:var(--accent-gold); cursor:pointer; font-weight:bold;">تعديل ✏️</button>
+                        <button onclick="deleteDrink(${item.id})" style="background:none; border:none; color:#ff5555; cursor:pointer; font-weight:bold;">حذف 🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function deleteDrink(id) {
+            if (confirm('هل أنت تأكد من حذف هذا المشروب من المنيو؟')) {
+                drinksList = drinksList.filter(d => Number(d.id) !== Number(id));
+                db.ref('drinks').set(drinksList);
+                renderMenuGrid();
+                renderAdminDrinksList();
+            }
+        }
+
+        /* Background Particle Animation */
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class FallingBean {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = -20;
+                this.size = Math.random() * 5 + 3;
+                this.speedY = Math.random() * 1.5 + 0.6;
+                this.opacity = Math.random() * 0.4 + 0.1;
+            }
+            update() {
+                this.y += this.speedY;
+                if (this.y > canvas.height + 20) this.reset();
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = '#6e4722';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.size, this.size * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        for (let i = 0; i < 30; i++) particles.push(new FallingBean());
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        renderMenuGrid();
+        renderPinViews();
+        syncCustomerOrderTracker();
+    </script>
+</body>
+</html>
